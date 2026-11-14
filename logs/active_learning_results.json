@@ -1,0 +1,22 @@
+{
+  "0_patches": {
+    "bot_catch_pct": 36.4,
+    "total_zeroday_catch_pct": 66.51
+  },
+  "1_patches": {
+    "bot_catch_pct": 39.88,
+    "total_zeroday_catch_pct": 69.16
+  },
+  "3_patches": {
+    "bot_catch_pct": 39.88,
+    "total_zeroday_catch_pct": 70.14
+  },
+  "5_patches": {
+    "bot_catch_pct": 75.0,
+    "total_zeroday_catch_pct": 86.56
+  },
+  "10_patches": {
+    "bot_catch_pct": 47.96,
+    "total_zeroday_catch_pct": 73.92
+  }
+}

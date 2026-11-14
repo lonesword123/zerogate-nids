@@ -1,0 +1,1697 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZEROGATE — Uncertainty-Aware NIDS Dashboard</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: #1e2330 #08080a;
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #08080a; }
+    ::-webkit-scrollbar-thumb { background: #1e2330; border-radius: 2px; }
+
+    /* Pure Matte-Dark Surface — Zero Neon Glow on Containers */
+    body {
+      background-color: #08080a;
+      color: #d4d4d8;
+      overflow-x: hidden;
+    }
+
+    .soc-card {
+      background-color: #0c0e14;
+      border: 1px solid #181c26;
+      border-radius: 6px;
+    }
+
+    .soc-card-crimson {
+      background-color: #110c10;
+      border: 1px solid rgba(244, 63, 94, 0.45);
+      border-radius: 6px;
+    }
+
+    .subcard-cyan {
+      background-color: #090c12;
+      border: 1px solid #1e293b;
+      border-radius: 5px;
+    }
+
+    .subcard-zerogate-alert {
+      background-color: #120b0f;
+      border: 1px solid rgba(244, 63, 94, 0.55);
+      border-radius: 5px;
+    }
+
+    .subcard-zerogate-calm {
+      background-color: #091210;
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      border-radius: 5px;
+    }
+
+    /* Clean Matte Buttons */
+    .btn-simulate {
+      background-color: #111622;
+      border: 1px solid #243046;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .btn-simulate:hover {
+      background-color: #172032;
+      border-color: #38bdf8;
+    }
+
+    .btn-zeroday {
+      background-color: #1f0d14;
+      border: 1px solid rgba(244, 63, 94, 0.55);
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .btn-zeroday:hover {
+      background-color: #2d111b;
+      border-color: #f43f5e;
+    }
+
+    /* Segmented Heat Bars (Website Security Monitoring Style) */
+    .seg-bar-grid {
+      display: grid;
+      grid-template-columns: repeat(28, minmax(0, 1fr));
+      gap: 2px;
+      height: 18px;
+      padding: 2px;
+      background-color: #08090d;
+      border: 1px solid #161b26;
+      border-radius: 4px;
+    }
+    .seg-cell {
+      border-radius: 1px;
+      background-color: #12151e;
+      transition: background-color 0.25s ease;
+    }
+
+    @keyframes rowFlashCrimson {
+      0% { background-color: rgba(244, 63, 94, 0.22); }
+      100% { background-color: transparent; }
+    }
+    .animate-row-flash {
+      animation: rowFlashCrimson 2s ease-out forwards;
+    }
+
+    /* ApexCharts Matte Overrides */
+    .apexcharts-tooltip {
+      background: #0c0e14 !important;
+      border: 1px solid #222838 !important;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.85) !important;
+      color: #e2e8f0 !important;
+      font-family: 'JetBrains Mono', monospace !important;
+      font-size: 11px !important;
+    }
+    .apexcharts-tooltip-title {
+      background: #111520 !important;
+      border-bottom: 1px solid #222838 !important;
+      font-family: 'JetBrains Mono', monospace !important;
+    }
+    .apexcharts-xaxis-label, .apexcharts-yaxis-label {
+      fill: #64748b !important;
+      font-family: 'JetBrains Mono', monospace !important;
+      font-size: 10px !important;
+    }
+    .apexcharts-gridline {
+      stroke: #141822 !important;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex bg-[#08080a] text-slate-200 font-sans antialiased selection:bg-slate-800 selection:text-white">
+
+  <!-- ===================================================================
+       A. LEFT NAVIGATION SIDEBAR (Grafana / AegisAI Minimal Icon Rail)
+       =================================================================== -->
+  <aside class="w-12 bg-[#090b10] border-r border-[#161a24] flex flex-col items-center py-3 justify-between shrink-0 z-30 select-none">
+    <div class="flex flex-col items-center space-y-2.5 w-full">
+      <button onclick="switchNavTab(0, 'Overview Grid')" title="ZeroGate Core" class="w-8 h-8 rounded-lg flex items-center justify-center bg-[#111622] border border-[#232c3f] text-cyan-400 hover:border-cyan-500/50 transition">
+        <i data-lucide="shield-half" class="w-4 h-4"></i>
+      </button>
+
+      <div class="w-6 h-[1px] bg-[#161a24] my-1"></div>
+
+      <button onclick="switchNavTab(1, 'Telemetry Analytics')" data-nav="1" title="Telemetry Analytics" class="nav-btn w-8 h-8 rounded flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-[#121620] transition relative">
+        <i data-lucide="trending-up" class="w-4 h-4"></i>
+      </button>
+
+      <button onclick="switchNavTab(2, 'Uncertainty Matrix Overview')" data-nav="2" title="Uncertainty Matrix Overview" class="nav-btn active-nav w-8 h-8 rounded flex items-center justify-center text-white bg-[#141926] border border-[#242d42] transition relative">
+        <span class="absolute -left-2 w-0.5 h-4 bg-cyan-400 rounded-r"></span>
+        <i data-lucide="layout-grid" class="w-4 h-4"></i>
+      </button>
+
+      <button onclick="switchNavTab(3, 'Mahalanobis Manifold Space')" data-nav="3" title="Mahalanobis Manifold Space" class="nav-btn w-8 h-8 rounded flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-[#121620] transition relative">
+        <i data-lucide="compass" class="w-4 h-4"></i>
+      </button>
+
+      <button onclick="switchNavTab(4, 'Zero-Day Quarantine Alerts')" data-nav="4" title="Zero-Day Quarantine Alerts" class="nav-btn w-8 h-8 rounded flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-[#121620] transition relative">
+        <i data-lucide="bell" class="w-4 h-4"></i>
+        <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+      </button>
+
+      <button onclick="switchNavTab(5, 'Conformal Threshold Calibration')" data-nav="5" title="Conformal Threshold Calibration" class="nav-btn w-8 h-8 rounded flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-[#121620] transition relative">
+        <i data-lucide="sliders" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <div class="flex flex-col items-center space-y-2.5">
+      <button onclick="openSystemSpecModal()" title="ZeroGate v4 Benchmark & Spec" class="w-8 h-8 rounded flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-[#121620] transition">
+        <i data-lucide="help-circle" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ===================================================================
+       MAIN WORKSPACE CONTAINER
+       =================================================================== -->
+  <div class="flex-1 flex flex-col min-w-0">
+
+    <!-- B1. TOP MICRO-BAR -->
+    <div class="h-7 bg-[#090b10] border-b border-[#161a24] px-4 flex items-center justify-between text-[11px] select-none">
+      <div class="flex items-center space-x-3">
+        <div class="flex items-center space-x-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          <span class="font-medium tracking-wider text-emerald-400">ACTIVE — NOVELTY DETECT MODE</span>
+        </div>
+        <span class="text-slate-700 hidden sm:inline">|</span>
+        <span id="top-telemetry-ticker" class="font-mono text-slate-400 hidden sm:inline">
+          MODEL: <span class="text-slate-200">ZeroGate-v4</span> • 95% BOUND: <span class="text-amber-400">D_rel = 1.42</span> • AUROC: <span class="text-emerald-400">90.86%</span> • ID ACC: <span class="text-cyan-400">99.67%</span>
+        </span>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <button id="btn-autostream" onclick="toggleAutoStream()" class="px-2 py-0.5 rounded bg-[#111520] border border-[#1f2637] hover:border-slate-600 text-slate-300 font-mono text-[10px] flex items-center space-x-1.5 transition">
+          <span id="autostream-dot" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+          <span>Auto-Stream: <strong id="autostream-label" class="text-slate-400">OFF</strong></span>
+        </button>
+
+        <button id="btn-api-mode" onclick="toggleBackendMode()" class="px-2 py-0.5 rounded bg-[#111520] border border-emerald-500/40 text-slate-300 font-mono text-[10px] flex items-center space-x-1.5 transition">
+          <i data-lucide="server" class="w-3 h-3 text-emerald-400"></i>
+          <span>Backend: <strong id="api-mode-label" class="text-emerald-400">FASTAPI LIVE</strong></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- B2. MAIN COMMAND HEADER -->
+    <header class="px-4 py-2.5 bg-[#0a0d13] border-b border-[#161a24] flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-xl sm:text-2xl leading-none font-bold tracking-wider text-white">
+              ZEROGATE
+            </h1>
+            <span class="px-1.5 py-0.5 text-[10px] font-mono font-medium bg-[#121724] text-cyan-400 border border-[#222b3d] rounded">
+              v4.0 CIC-IDS2017
+            </span>
+          </div>
+          <p class="text-[10px] font-mono tracking-widest text-slate-400 mt-1 uppercase">
+            UNCERTAINTY-AWARE NIDS &amp; RELATIVE MANIFOLD TELEMETRY
+          </p>
+        </div>
+      </div>
+
+      <div id="system-status-pill" class="flex items-center space-x-2 px-3 py-1 rounded bg-[#0e131d] border border-[#1c2638] transition-all duration-300">
+        <span id="system-led-dot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span id="system-status-text" class="text-[11px] font-mono font-semibold tracking-wider text-emerald-400 uppercase">
+          SYSTEM ONLINE — MODE: ACTIVE
+        </span>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <button id="btn-normal" onclick="simulateNormalTraffic()" class="btn-simulate px-3 py-1.5 rounded text-xs font-medium text-slate-200 flex items-center space-x-1.5 cursor-pointer">
+          <span class="font-mono text-cyan-400 font-bold text-xs">((•))</span>
+          <span>Simulate Live Traffic</span>
+        </button>
+
+        <button id="btn-zeroday" onclick="injectZeroDayAttack()" class="btn-zeroday px-3 py-1.5 rounded text-xs font-semibold text-rose-200 flex items-center space-x-1.5 cursor-pointer">
+          <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-400"></i>
+          <span>INJECT ZERO-DAY ATTACK</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ===================================================================
+         MAIN 12-COLUMN WORKSPACE GRID
+         =================================================================== -->
+    <main class="flex-1 p-3.5 space-y-3.5 max-w-[1920px] w-full mx-auto">
+
+      <!-- =================================================================
+           C. ROW 1 — 4 KPI SUMMARY CARDS (Clean Matte Cards + Colored Sparklines)
+           ================================================================= -->
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+
+        <!-- KPI Card 1 -->
+        <div class="soc-card px-4 py-3 flex items-center justify-between">
+          <div>
+            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Total Traffic Analyzed</div>
+            <div class="mt-1 flex items-baseline space-x-2">
+              <span id="kpi-total" class="text-2xl font-bold font-mono text-white">16,183</span>
+              <span class="text-[11px] font-mono text-emerald-400">+99.67% ID Acc</span>
+            </div>
+          </div>
+          <div class="hidden xl:flex items-end space-x-1 h-8 opacity-80">
+            <span class="w-1 h-3 bg-slate-700 rounded-sm"></span>
+            <span class="w-1 h-5 bg-slate-600 rounded-sm"></span>
+            <span class="w-1 h-4 bg-slate-600 rounded-sm"></span>
+            <span class="w-1 h-6 bg-cyan-500/70 rounded-sm"></span>
+            <span class="w-1 h-7 bg-cyan-400 rounded-sm"></span>
+          </div>
+        </div>
+
+        <!-- KPI Card 2 -->
+        <div class="soc-card px-4 py-3 flex items-center justify-between">
+          <div>
+            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Auto-Allowed (Benign)</div>
+            <div class="mt-1 flex items-baseline space-x-2">
+              <span id="kpi-benign" class="text-2xl font-bold font-mono text-emerald-400">12,000</span>
+              <span class="text-[10px] font-mono text-slate-500">94.68% Cov</span>
+            </div>
+          </div>
+          <div class="w-32 h-10 flex items-center">
+            <svg class="w-full h-full overflow-visible" viewBox="0 0 140 42">
+              <defs>
+                <linearGradient id="emeraldGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#10b981" stop-opacity="0.28" />
+                  <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+                </linearGradient>
+              </defs>
+              <path d="M2,30 Q14,20 26,27 T50,22 T74,25 T98,18 T122,24 T138,16 L138,40 L2,40 Z" fill="url(#emeraldGrad)" />
+              <path d="M2,30 Q14,20 26,27 T50,22 T74,25 T98,18 T122,24 T138,16" fill="none" stroke="#10b981" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- KPI Card 3 -->
+        <div class="soc-card px-4 py-3 flex items-center justify-between">
+          <div>
+            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Auto-Blocked (Known)</div>
+            <div class="mt-1 flex items-baseline space-x-2">
+              <span id="kpi-blocked" class="text-2xl font-bold font-mono text-amber-400">1,401</span>
+              <span id="ticker-centroids-sub" class="text-[10px] font-mono text-slate-500">28 Prototypes</span>
+            </div>
+          </div>
+          <div class="w-32 h-10 flex items-center">
+            <svg class="w-full h-full overflow-visible" viewBox="0 0 140 42">
+              <defs>
+                <linearGradient id="amberGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.28" />
+                  <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.0" />
+                </linearGradient>
+              </defs>
+              <path d="M2,28 Q16,22 28,27 T54,23 T78,27 T104,19 T124,26 T138,18 L138,40 L2,40 Z" fill="url(#amberGrad)" />
+              <path d="M2,28 Q16,22 28,27 T54,23 T78,27 T104,19 T124,26 T138,18" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- KPI Card 4 -->
+        <div id="kpi-quarantine-card" class="soc-card-crimson px-4 py-3 flex items-center justify-between transition-transform duration-200">
+          <div>
+            <div class="text-[11px] font-medium text-rose-300/90 uppercase tracking-wider">Zero-Day Quarantines</div>
+            <div class="mt-1 flex items-center space-x-2">
+              <span id="kpi-quarantine" class="text-2xl font-bold font-mono text-rose-400">2,782</span>
+              <span class="text-[10px] font-mono text-rose-400/80">p &lt; 0.05</span>
+            </div>
+          </div>
+          <div class="w-32 h-10 flex items-center">
+            <svg class="w-full h-full overflow-visible" viewBox="0 0 140 42">
+              <defs>
+                <linearGradient id="crimsonGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.35" />
+                  <stop offset="100%" stop-color="#f43f5e" stop-opacity="0.0" />
+                </linearGradient>
+              </defs>
+              <path d="M2,35 L28,35 Q35,35 39,28 Q43,35 48,35 L68,35 Q73,35 77,26 Q81,35 86,35 L98,35 Q104,34 109,5 Q114,34 120,34 L138,34 L138,40 L2,40 Z" fill="url(#crimsonGrad)" />
+              <path d="M2,35 L28,35 Q35,35 39,28 Q43,35 48,35 L68,35 Q73,35 77,26 Q81,35 86,35 L98,35 Q104,34 109,5 Q114,34 120,34 L138,34" fill="none" stroke="#f43f5e" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- =================================================================
+           D. ROW 2 — CORE ANALYSIS & SPLIT-SCREEN TRIAGE (12-Column Grid)
+           ================================================================= -->
+      <section class="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
+
+        <!-- LEFT PANEL (6 Columns): Epistemic Doubt Pulse & Event Timeline -->
+        <div class="lg:col-span-6 soc-card p-3.5 flex flex-col justify-between">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#161a24] pb-2">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
+              Epistemic Doubt Pulse &amp; Event Timeline
+            </h2>
+            <div class="flex flex-wrap items-center gap-3 text-[11px] font-mono">
+              <span class="flex items-center space-x-1.5 text-slate-300">
+                <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                <span>Epistemic</span>
+              </span>
+              <span class="flex items-center space-x-1.5 text-slate-300">
+                <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+                <span>Aleatoric</span>
+              </span>
+              <span class="flex items-center space-x-1.5 text-slate-300">
+                <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                <span>Softmax</span>
+              </span>
+              <span id="badge-spike-detected" class="px-2 py-0.5 rounded text-[10px] font-mono font-semibold uppercase bg-rose-950/60 text-rose-300 border border-rose-500/40">
+                SPIKE DETECTED
+              </span>
+            </div>
+          </div>
+
+          <div class="relative w-full h-52 pt-1">
+            <div id="epistemicTimelineChart" class="w-full h-full"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT PANEL (6 Columns): Current Flow Triage Module -->
+        <div class="lg:col-span-6 soc-card p-3.5 flex flex-col justify-between">
+          <div class="flex items-center justify-between border-b border-[#161a24] pb-2">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
+              Current Flow Triage Module
+            </h2>
+            <span id="triage-flow-meta" class="text-[11px] font-mono text-slate-400">
+              ACTIVE FLOW: <strong class="text-cyan-400">#9042</strong> • SRC: <strong class="text-slate-200">45.134.212.71</strong>
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 my-auto pt-2.5">
+
+            <!-- Left Sub-Card: Standard Closed-World NIDS -->
+            <div id="subcard-closedworld" class="subcard-cyan p-4 flex flex-col items-center justify-between text-center min-h-[192px]">
+              <div class="w-full flex items-center justify-between">
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">Standard Closed-World NIDS</h3>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+              </div>
+
+              <div class="my-3 space-y-1">
+                <div class="text-base font-medium text-slate-200">
+                  Predicted <span id="cw-prediction" class="font-bold font-mono text-emerald-400">BENIGN (99.4%)</span>
+                </div>
+                <div id="cw-subtitle" class="text-xs text-slate-400">
+                  Softmax Confidence
+                </div>
+                <div id="cw-subnote" class="text-[10px] font-mono text-slate-500 pt-1">
+                  Overconfident Extrapolation on Unseen Manifold
+                </div>
+              </div>
+
+              <div id="cw-status-pill" class="w-full py-1.5 px-2.5 rounded bg-rose-950/50 border border-rose-500/40 text-rose-300 font-semibold text-[11px] tracking-wide uppercase flex items-center justify-center space-x-1.5">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-400 shrink-0"></i>
+                <span id="cw-status-text">SILENT FAILURE (UNSEEN)</span>
+              </div>
+            </div>
+
+            <!-- Right Sub-Card: ZeroGate Engine -->
+            <div id="subcard-zerogate" class="subcard-zerogate-alert p-4 flex flex-col items-center justify-between text-center min-h-[192px] transition-colors duration-300">
+              <div class="w-full flex items-center justify-between">
+                <svg id="zg-wave-left" class="w-4 h-4 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <path d="M2 12h2M6 8v8M10 5v14M14 9v6M18 7v10M22 12h-2"/>
+                </svg>
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-white">ZeroGate v4 Engine</h3>
+                <svg id="zg-wave-right" class="w-4 h-4 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <path d="M2 12h2M6 8v8M10 5v14M14 9v6M18 7v10M22 12h-2"/>
+                </svg>
+              </div>
+
+              <div class="w-full my-2 space-y-1.5">
+                <div id="zg-decision-title" class="text-base font-bold font-mono tracking-wide text-rose-400">
+                  ABSTAIN - UNKNOWN
+                </div>
+
+                <div class="flex items-center justify-center space-x-2 text-xs">
+                  <span class="text-slate-400">Epistemic Doubt</span>
+                  <div class="relative w-20 h-5 rounded bg-[#08090d] border border-[#222938] overflow-hidden flex items-center px-1.5">
+                    <div id="zg-doubt-bar" class="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500/70 to-rose-500/80 transition-all duration-500" style="width: 91%;"></div>
+                    <span id="zg-doubt-val" class="relative z-10 font-mono font-semibold text-[11px] text-white">(91.0%)</span>
+                  </div>
+                </div>
+
+                <div class="text-xs text-slate-300">
+                  Conformal Credibility <span class="font-mono">p=<strong id="zg-pval" class="text-rose-400 font-bold">0.0012</strong></span>
+                </div>
+              </div>
+
+              <div id="zg-status-pill" class="w-full py-1.5 px-2.5 rounded bg-rose-950/60 border border-rose-500/50 text-rose-200 font-semibold text-[11px] tracking-wide uppercase flex items-center justify-center space-x-1.5">
+                <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-rose-400 shrink-0"></i>
+                <span id="zg-status-text">QUARANTINE - PENDING TRIAGE</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </section>
+
+      <!-- =================================================================
+           E. ROW 3 — DEEP DIVE ANALYTICS (2 Equal Panels, 12-Column Grid)
+           ================================================================= -->
+      <section class="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
+
+        <!-- LEFT PANEL (6 Columns): Relative Manifold Distance Scatter & Topographic Radar -->
+        <div class="lg:col-span-6 soc-card p-3.5 flex flex-col justify-between">
+          <div class="flex items-center justify-between border-b border-[#161a24] pb-2">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
+              Latent Distance Scatter Plot (Relative Manifold Space)
+            </h2>
+            <div class="flex items-center space-x-2">
+              <span class="text-[11px] font-mono text-slate-400">
+                95% Bound: <strong class="text-amber-400">D_rel = 1.42</strong>
+              </span>
+              <button onclick="resetRadarParticles()" class="px-2 py-0.5 rounded bg-[#111520] hover:bg-[#192030] text-[10px] font-mono text-slate-300 border border-[#22293a] transition">
+                Re-Sync
+              </button>
+            </div>
+          </div>
+
+          <div class="relative w-full h-52 flex items-center justify-center overflow-hidden select-none bg-[#08090d] rounded mt-2 border border-[#131722]">
+            <canvas id="mahalanobisCanvas" class="w-full h-full cursor-crosshair"></canvas>
+
+            <div class="pointer-events-none absolute top-3 left-4 flex flex-col items-start">
+              <span class="text-[11px] font-medium text-emerald-400">
+                In-Distribution (Benign)
+              </span>
+              <span class="text-[10px] font-mono text-slate-500">Median D_rel = 0.63</span>
+            </div>
+
+            <div class="pointer-events-none absolute bottom-3 left-4 flex flex-col items-start">
+              <span class="text-[11px] font-medium text-amber-400">
+                95% Calibration Ring
+              </span>
+              <span class="text-[10px] font-mono text-slate-500">D_rel = 1.42 Threshold</span>
+            </div>
+
+            <div class="pointer-events-none absolute bottom-3 right-4 flex flex-col items-end text-right">
+              <span class="text-[11px] font-medium text-rose-400">
+                Zero-Day Outliers [Far-OOD]
+              </span>
+              <span id="radar-outlier-count" class="text-[10px] font-mono text-slate-400">
+                Active Far-OOD Vectors: 5 (Latest D_rel = 2.81)
+              </span>
+            </div>
+
+            <div id="canvas-tooltip" class="hidden pointer-events-none absolute z-20 px-2.5 py-1.5 rounded bg-[#0c0e14] border border-[#252d3f] text-[10px] font-mono text-slate-200 shadow-xl"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT PANEL (6 Columns): Contrastive Feature Drift Analysis (Segmented Heat-Bars) -->
+        <div class="lg:col-span-6 soc-card p-3.5 flex flex-col justify-between">
+          <div class="flex items-center justify-between border-b border-[#161a24] pb-2">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
+              Feature Drift Analysis (Contrastive Attribution)
+            </h2>
+            <span class="text-[11px] font-mono text-slate-400">
+              Mode: <strong id="drift-mode-badge" class="text-rose-400">FAR-OOD SHIFT</strong>
+            </span>
+          </div>
+
+          <div class="my-auto py-2.5 space-y-4 px-1">
+            <!-- Bar 1 -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <span id="drift-label-1" class="font-medium text-slate-200">Protocol Port Surprise (94.2%)</span>
+                <span id="drift-inner-1" class="font-mono text-[11px] text-rose-400">Out-of-Distribution (+4.82σ)</span>
+              </div>
+              <div id="seg-bar-1" class="seg-bar-grid"></div>
+            </div>
+
+            <!-- Bar 2 -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <span id="drift-label-2" class="font-medium text-slate-200">Packet Length Variance (86.5%)</span>
+                <span id="drift-inner-2" class="font-mono text-[11px] text-amber-400">+3.91σ Drift</span>
+              </div>
+              <div id="seg-bar-2" class="seg-bar-grid"></div>
+            </div>
+
+            <!-- Bar 3 -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <span id="drift-label-3" class="font-medium text-slate-200">Init_Win_bytes_forward (71.0%)</span>
+                <span id="drift-inner-3" class="font-mono text-[11px] text-rose-300">+2.74σ Entropy</span>
+              </div>
+              <div id="seg-bar-3" class="seg-bar-grid"></div>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-[#161a24] flex items-center justify-between text-[11px] font-mono text-slate-400">
+            <span>Conformal p: <strong id="drift-kl" class="text-rose-400">0.0012</strong></span>
+            <span>Relative D_rel: <strong id="drift-w1" class="text-amber-400">2.81</strong></span>
+            <span>Top Feature: <strong id="drift-top-feat" class="text-cyan-400">Protocol Port Surprise</strong></span>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- =================================================================
+           F. ROW 4 — BOTTOM ANALYST TRIAGE QUEUE (Full-Width Table)
+           ================================================================= -->
+      <section class="soc-card overflow-hidden">
+        <div class="px-4 py-2.5 bg-[#0a0c12] border-b border-[#161a24] flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center space-x-3">
+            <h2 class="text-xs font-bold tracking-wider text-slate-200 uppercase">
+              BOTTOM — ANALYST TRIAGE QUEUE
+            </h2>
+            <span id="queue-count-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-rose-950/60 text-rose-300 border border-rose-500/40">
+              2 PENDING TRIAGE
+            </span>
+          </div>
+
+          <div class="flex items-center space-x-1.5 text-[11px]">
+            <button onclick="filterTriageTable('all')" data-filter="all" class="triage-filter-btn px-2.5 py-0.5 rounded bg-[#161c2a] text-white border border-[#263044] font-medium transition">
+              All Flows
+            </button>
+            <button onclick="filterTriageTable('quarantined')" data-filter="quarantined" class="triage-filter-btn px-2.5 py-0.5 rounded bg-[#0e1118] hover:bg-[#141924] text-slate-400 border border-[#1a202c] font-medium transition">
+              Far-OOD Quarantined
+            </button>
+            <button onclick="filterTriageTable('review')" data-filter="review" class="triage-filter-btn px-2.5 py-0.5 rounded bg-[#0e1118] hover:bg-[#141924] text-slate-400 border border-[#1a202c] font-medium transition">
+              Under Review
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-[#161a24] bg-[#090b10] text-[11px] font-mono uppercase text-slate-500">
+                <th class="py-2.5 px-4">Timestamp</th>
+                <th class="py-2.5 px-3">Flow ID</th>
+                <th class="py-2.5 px-3">Source IP</th>
+                <th class="py-2.5 px-3">Class Candidate</th>
+                <th class="py-2.5 px-3">Epistemic Score</th>
+                <th class="py-2.5 px-3">Conformal p</th>
+                <th class="py-2.5 px-3">Relative D_rel</th>
+                <th class="py-2.5 px-4 text-right sm:text-left">Status / Action</th>
+              </tr>
+            </thead>
+            <tbody id="triage-table-body" class="divide-y divide-[#121620] text-xs font-mono">
+              <tr id="row-9042" data-status="quarantined" class="hover:bg-[#10141d] transition">
+                <td class="py-2.5 px-4 text-slate-300">15:06:12</td>
+                <td class="py-2.5 px-3 text-white font-semibold">#9042</td>
+                <td class="py-2.5 px-3 text-slate-300">45.134.212.71</td>
+                <td class="py-2.5 px-3 font-sans font-medium text-rose-400">Web Attack - XSS (Zero-Day)</td>
+                <td class="py-2.5 px-3 font-semibold text-emerald-400">91.0%</td>
+                <td class="py-2.5 px-3 text-slate-200">0.0012</td>
+                <td class="py-2.5 px-3">
+                  <span class="text-white font-semibold">2.81</span>
+                  <span class="text-rose-400">[Far-OOD]</span>
+                </td>
+                <td class="py-2.5 px-4">
+                  <div class="flex items-center justify-end sm:justify-between gap-2">
+                    <span id="status-text-9042" class="font-sans text-slate-300">Quarantined</span>
+                    <div class="flex items-center space-x-1.5">
+                      <button onclick="openTriageModal('#9042', '45.134.212.71', 'Web Attack - XSS (Zero-Day)', '91.0%', '0.0012', '2.81 [Far-OOD]', 'Quarantined')" class="px-2.5 py-1 rounded bg-[#111726] hover:bg-[#182136] text-cyan-300 border border-[#24324d] text-[11px] font-sans font-medium transition">
+                        Investigate
+                      </button>
+                      <button id="patch-btn-9042" onclick="executeActiveLearningPatch('#9042', '45.134.212.71')" class="px-2.5 py-1 rounded bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 text-[11px] font-sans font-medium transition">
+                        Patch
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+
+              <tr id="row-9088" data-status="review" class="hover:bg-[#10141d] transition">
+                <td class="py-2.5 px-4 text-slate-300">15:05:44</td>
+                <td class="py-2.5 px-3 text-white font-semibold">#9088</td>
+                <td class="py-2.5 px-3 text-slate-300">10.0.4.112</td>
+                <td class="py-2.5 px-3 font-sans font-medium text-amber-400">Bot (Zero-Day)</td>
+                <td class="py-2.5 px-3 font-semibold text-rose-400">78.0%</td>
+                <td class="py-2.5 px-3 text-slate-200">0.0380</td>
+                <td class="py-2.5 px-3">
+                  <span class="text-white font-semibold">1.48</span>
+                  <span class="text-amber-300">[Near-OOD]</span>
+                </td>
+                <td class="py-2.5 px-4">
+                  <div class="flex items-center justify-end sm:justify-between gap-2">
+                    <span id="status-text-9088" class="font-sans text-slate-300">Under Review</span>
+                    <div class="flex items-center space-x-1.5">
+                      <button onclick="openTriageModal('#9088', '10.0.4.112', 'Bot (Zero-Day)', '78.0%', '0.0380', '1.48 [Near-OOD]', 'Under Review')" class="px-3 py-1 rounded bg-[#111726] hover:bg-[#182136] text-cyan-300 border border-[#24324d] text-[11px] font-sans font-medium transition">
+                        Inspect
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ===================================================================
+       DEEP FLOW INSPECTION & 1-CLICK ACTIVE LEARNING MODAL
+       =================================================================== -->
+  <div id="triage-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="soc-card w-full max-w-2xl border border-[#263044] overflow-hidden shadow-2xl">
+      <div class="px-5 py-3.5 bg-[#0a0d14] border-b border-[#181c26] flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+          <h3 class="text-xs font-bold tracking-wider text-white uppercase">
+            ZeroGate v4 Deep Flow Inspection &amp; Active Learning
+          </h3>
+        </div>
+        <button onclick="closeTriageModal()" class="text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#08090d] p-3.5 rounded border border-[#161a24] font-mono">
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase">Flow ID</div>
+            <div id="modal-flow-id" class="text-sm font-bold text-cyan-400 mt-0.5">#9042</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase">Source IP</div>
+            <div id="modal-src-ip" class="text-sm font-bold text-white mt-0.5">45.134.212.71</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase">Epistemic Doubt</div>
+            <div id="modal-epistemic" class="text-sm font-bold text-rose-400 mt-0.5">91.0%</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase">Conformal p-Val</div>
+            <div id="modal-pval" class="text-sm font-bold text-amber-400 mt-0.5">0.0012</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="bg-[#090c12] p-3.5 rounded border border-[#161a24] space-y-1.5">
+            <div class="font-semibold text-slate-200 flex items-center justify-between">
+              <span>Closed-World Softmax Trap</span>
+              <span class="text-[10px] font-mono text-rose-400">Silent Failure</span>
+            </div>
+            <p class="text-slate-400 leading-relaxed">
+              Unseen Zero-Day coordinates at <span id="modal-distance" class="font-mono text-rose-300 font-semibold">2.81 [Far-OOD]</span> fall into the BENIGN half-space of standard NIDS classifiers (`96%–100%` fooled rate on CIC-IDS2017).
+            </p>
+          </div>
+
+          <div class="bg-[#090c12] p-3.5 rounded border border-[#161a24] space-y-1.5">
+            <div class="font-semibold text-slate-200 flex items-center justify-between">
+              <span>ZeroGate v4 Proof</span>
+              <span class="text-[10px] font-mono text-cyan-400">Relative Manifold + Conformal</span>
+            </div>
+            <p class="text-slate-400 leading-relaxed">
+              Local-density k-NN distance ratio exceeds the 95% calibration bound (<span class="font-mono text-amber-300">1.42</span>) and empirical <span class="font-mono text-rose-300">p &lt; 0.05</span> triggered automatic quarantine.
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-[#08090d] p-3 rounded border border-[#161a24] font-mono text-[11px] text-slate-300">
+          <div class="flex items-center justify-between text-[10px] text-slate-500 mb-1.5 border-b border-[#141822] pb-1">
+            <span>CIC-IDS2017 HOLDOUT BENCHMARK (logs/benchmark_results.json)</span>
+            <span id="modal-candidate" class="text-rose-400 font-bold">Web Attack - XSS (Zero-Day)</span>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] pt-1">
+            <div>Heartbleed: <strong class="text-emerald-400">100.0%</strong></div>
+            <div>Web XSS: <strong class="text-emerald-400">97.7%</strong></div>
+            <div>Infiltration: <strong class="text-emerald-400">97.2%</strong></div>
+            <div>Brute Force: <strong class="text-emerald-400">91.0%</strong></div>
+            <div>SQL Injection: <strong class="text-amber-400">71.4%</strong></div>
+            <div>Overall AUROC: <strong class="text-cyan-400">90.86%</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-5 py-3 bg-[#0a0d14] border-t border-[#181c26] flex flex-wrap items-center justify-between gap-2">
+        <span class="text-[11px] font-mono text-slate-400">
+          Executes POST /recalibrate to append vector to Reference Manifold
+        </span>
+        <div class="flex items-center space-x-2">
+          <button onclick="closeTriageModal()" class="px-3 py-1.5 rounded bg-[#141923] hover:bg-[#1c2331] text-slate-300 text-xs font-medium transition">
+            Close
+          </button>
+          <button onclick="confirmModalPatch()" class="btn-zeroday px-4 py-1.5 rounded text-xs font-semibold text-white flex items-center space-x-1.5">
+            <i data-lucide="cpu" class="w-3.5 h-3.5 text-cyan-300"></i>
+            <span>1-Click Active Learning Patch &amp; Recalibrate</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       TOAST NOTIFICATION CONTAINER
+       =================================================================== -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 max-w-md w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- ===================================================================
+       JAVASCRIPT ENGINE (LIVE FASTAPI BACKEND + TOPOGRAPHIC MANIFOLD)
+       =================================================================== -->
+  <script>
+    let USE_BACKEND_API = true;
+    const BACKEND_BASE_URL = '' + window.location.origin + '';
+
+    lucide.createIcons();
+
+    const state = {
+      totalAnalyzed: 16183,
+      autoAllowed: 12000,
+      autoBlocked: 1401,
+      quarantines: 2782,
+      autoStreamInterval: null,
+      activeModalFlowId: '#9042',
+      activeModalIp: '45.134.212.71',
+      flowFeaturesMap: {},
+      currentFilter: 'all',
+      timestamps: ['10:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00'],
+      epistemicSeries: [0.12, 0.24, 0.08, 0.14, 0.10, 0.91, 0.86],
+      aleatoricSeries: [0.09, 0.21, 0.07, 0.25, 0.11, 0.34, 0.22],
+      softmaxSeries:   [0.16, 0.26, 0.10, 0.19, 0.68, 0.12, 0.15]
+    };
+
+    // Render 28-segment discrete heat bar (Website Security Monitoring reference style)
+    function renderSegBar(containerId, pct, isAttack) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      const total = 28;
+      const filled = Math.max(1, Math.min(total, Math.round((pct / 100) * total)));
+      let html = '';
+      for (let i = 0; i < total; i++) {
+        let color = '#12151e';
+        if (i < filled) {
+          const r = i / total;
+          if (!isAttack) color = '#10b981';
+          else if (r < 0.35) color = '#10b981';
+          else if (r < 0.68) color = '#f59e0b';
+          else color = '#f43f5e';
+        }
+        html += `<div class="seg-cell" style="background-color:${color};"></div>`;
+      }
+      el.innerHTML = html;
+    }
+
+    async function checkBackendHealth() {
+      try {
+        const res = await fetch(`${BACKEND_BASE_URL}/health`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const sub = document.getElementById('ticker-centroids-sub');
+        if (sub) sub.textContent = `${data.known_centroids} Prototypes`;
+        showToast('Connected to ZeroGate v4 FastAPI Engine (port 8000).', 'success');
+      } catch (err) {
+        showToast('FastAPI backend offline on port 8000 — using local simulation fallback.', 'warning');
+      }
+    }
+
+    async function fetchFromBackend(type, requireOod = false) {
+      try {
+        const maxAttempts = requireOod ? 5 : 1;
+        let lastResult = null;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          const packetRes = await fetch(`${BACKEND_BASE_URL}/get_packet/${type}`);
+          if (!packetRes.ok) throw new Error(`HTTP ${packetRes.status}`);
+          const packetData = await packetRes.json();
+
+          const analyzeRes = await fetch(`${BACKEND_BASE_URL}/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(packetData)
+          });
+          if (!analyzeRes.ok) throw new Error(`HTTP ${analyzeRes.status}`);
+          const analysisResult = await analyzeRes.json();
+          analysisResult.raw_features = packetData.features;
+          lastResult = analysisResult;
+
+          if (!requireOod || analysisResult.zerogate.conformal_p < 0.05 || analysisResult.zerogate.verdict.includes('UNKNOWN')) {
+            return analysisResult;
+          }
+        }
+        return lastResult;
+      } catch (err) {
+        showToast(`Backend unreachable (${err.message}). Using local fallback.`, 'warning');
+        return null;
+      }
+    }
+
+    function toggleBackendMode() {
+      USE_BACKEND_API = !USE_BACKEND_API;
+      const label = document.getElementById('api-mode-label');
+      if (USE_BACKEND_API) {
+        label.textContent = 'FASTAPI LIVE';
+        label.className = 'text-emerald-400';
+        checkBackendHealth();
+      } else {
+        label.textContent = 'SIMULATION';
+        label.className = 'text-cyan-400';
+        showToast('Switched to Local Simulation Mode.', 'info');
+      }
+    }
+
+    // =========================================================================
+    // APEXCHARTS TIMELINE
+    // =========================================================================
+    let timelineChart = null;
+
+    function initTimelineChart() {
+      const yLabelsMap = { 0: '0', 0.25: '25%', 0.5: '50%', 0.75: '75%', 1: '100%' };
+      const options = {
+        chart: {
+          type: 'area',
+          height: '100%',
+          background: 'transparent',
+          toolbar: { show: false },
+          animations: { enabled: true, easing: 'easeinout', speed: 450 },
+          zoom: { enabled: false }
+        },
+        series: [
+          { name: 'Epistemic', data: state.epistemicSeries },
+          { name: 'Aleatoric', data: state.aleatoricSeries },
+          { name: 'Softmax',   data: state.softmaxSeries }
+        ],
+        colors: ['#f43f5e', '#38bdf8', '#f59e0b'],
+        stroke: { curve: 'smooth', width: [2.2, 1.8, 1.6] },
+        fill: {
+          type: 'gradient',
+          gradient: {
+            shadeIntensity: 1,
+            opacityFrom: [0.35, 0.18, 0.12],
+            opacityTo: [0.0, 0.0, 0.0],
+            stops: [0, 95, 100]
+          }
+        },
+        dataLabels: { enabled: false },
+        legend: { show: false },
+        grid: {
+          borderColor: '#141822',
+          xaxis: { lines: { show: true } },
+          yaxis: { lines: { show: true } },
+          padding: { top: 4, right: 10, bottom: 0, left: 6 }
+        },
+        xaxis: {
+          categories: state.timestamps,
+          axisBorder: { show: true, color: '#1e2433' },
+          axisTicks: { show: false },
+          tooltip: { enabled: false }
+        },
+        yaxis: {
+          min: 0,
+          max: 1.0,
+          tickAmount: 4,
+          labels: {
+            formatter: function (val) {
+              const rounded = Math.round(val * 4) / 4;
+              return yLabelsMap[rounded] !== undefined ? yLabelsMap[rounded] : val.toFixed(1);
+            }
+          }
+        },
+        annotations: {
+          yaxis: [{ y: 0.5, borderColor: '#475569', strokeDashArray: 3 }],
+          xaxis: [
+            {
+              x: '15:30',
+              borderColor: '#f43f5e',
+              fillColor: 'rgba(244, 63, 94, 0.18)',
+              label: {
+                text: 'OOD QUARANTINE ZONE',
+                borderColor: '#f43f5e',
+                style: { background: '#1f0d14', color: '#fecdd3', fontSize: '9px', fontFamily: 'JetBrains Mono' }
+              }
+            }
+          ]
+        },
+        tooltip: {
+          theme: 'dark',
+          shared: true,
+          intersect: false,
+          y: { formatter: (val) => (val * 100).toFixed(1) + '%' }
+        }
+      };
+
+      timelineChart = new ApexCharts(document.querySelector('#epistemicTimelineChart'), options);
+      timelineChart.render();
+    }
+
+    // =========================================================================
+    // CANVAS: RELATIVE MANIFOLD TOPOGRAPHIC SCATTER PLOT
+    // =========================================================================
+    const canvas = document.getElementById('mahalanobisCanvas');
+    const ctx = canvas.getContext('2d');
+    const tooltipEl = document.getElementById('canvas-tooltip');
+
+    let benignDots = [];
+    let signatureDots = [];
+    let outlierDots = [];
+    let activeProjectiles = [];
+    let shockwaves = [];
+
+    function initRadarParticles() {
+      benignDots = [];
+      signatureDots = [];
+      outlierDots = [];
+
+      for (let i = 0; i < 105; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const rNorm = Math.pow(Math.random(), 0.75) * 0.42;
+        benignDots.push({
+          angle,
+          rNorm,
+          size: 1.7 + Math.random() * 1.4,
+          phase: Math.random() * Math.PI * 2,
+          dm: (0.25 + rNorm * 1.8).toFixed(2),
+          label: 'Benign Flow (In-Dist)'
+        });
+      }
+
+      const sigAngles = [2.2, 2.45, 2.6, 2.75, 0.35, 3.8, 5.1, 1.1, 4.4];
+      sigAngles.forEach((a, idx) => {
+        signatureDots.push({
+          angle: a,
+          rNorm: 0.48 + (idx % 3) * 0.04,
+          size: 2.5,
+          dm: (1.15 + idx * 0.04).toFixed(2),
+          label: 'Known Attack Prototype'
+        });
+      });
+
+      outlierDots = [
+        { angle: -0.45, rNorm: 0.74, size: 3.5, dm: '2.81', label: 'Web Attack - XSS #9042', pulse: 0 },
+        { angle: 0.12,  rNorm: 0.78, size: 3.5, dm: '2.79', label: 'Brute Force #9012', pulse: 1.2 },
+        { angle: 0.68,  rNorm: 0.88, size: 3.8, dm: '2.18', label: 'Infiltration #9029', pulse: 2.1 },
+        { angle: -0.28, rNorm: 1.15, size: 4.0, dm: '2.03', label: 'Heartbleed #8994', pulse: 0.5 },
+        { angle: 2.85,  rNorm: 0.64, size: 3.2, dm: '1.48', label: 'Botnet Near-OOD #9088', pulse: 1.7 }
+      ];
+    }
+
+    function resizeRadarCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function drawMahalanobisRadar() {
+      const width = canvas.width / (window.devicePixelRatio || 1);
+      const height = canvas.height / (window.devicePixelRatio || 1);
+      const cx = width * 0.5;
+      const cy = height * 0.52;
+      const maxRadius = Math.min(width, height) * 0.43;
+
+      ctx.clearRect(0, 0, width, height);
+
+      // Concentric Manifold Rings
+      const rings = [0.35, 0.56, 0.78, 0.98];
+      rings.forEach((rFactor, idx) => {
+        ctx.beginPath();
+        if (idx === 1) ctx.setLineDash([4, 4]);
+        else ctx.setLineDash([]);
+        ctx.arc(cx, cy, maxRadius * rFactor, 0, Math.PI * 2);
+        ctx.strokeStyle = idx === 1
+          ? 'rgba(245, 158, 11, 0.45)'
+          : 'rgba(51, 65, 85, 0.38)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+
+      // Crosshairs
+      ctx.strokeStyle = 'rgba(30, 41, 59, 0.45)';
+      ctx.beginPath();
+      ctx.moveTo(cx - maxRadius, cy);
+      ctx.lineTo(cx + maxRadius, cy);
+      ctx.moveTo(cx, cy - maxRadius);
+      ctx.lineTo(cx, cy + maxRadius);
+      ctx.stroke();
+
+      const time = performance.now() * 0.002;
+      benignDots.forEach(dot => {
+        const wobble = Math.sin(time + dot.phase) * 1.2;
+        const x = cx + Math.cos(dot.angle) * (dot.rNorm * maxRadius + wobble);
+        const y = cy + Math.sin(dot.angle) * (dot.rNorm * maxRadius + wobble);
+        dot.screenX = x;
+        dot.screenY = y;
+
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.arc(x, y, dot.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      signatureDots.forEach(dot => {
+        const x = cx + Math.cos(dot.angle) * (dot.rNorm * maxRadius);
+        const y = cy + Math.sin(dot.angle) * (dot.rNorm * maxRadius);
+        dot.screenX = x;
+        dot.screenY = y;
+
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(x, y, dot.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      outlierDots.forEach(dot => {
+        const x = cx + Math.cos(dot.angle) * (dot.rNorm * maxRadius);
+        const y = cy + Math.sin(dot.angle) * (dot.rNorm * maxRadius);
+        dot.screenX = x;
+        dot.screenY = y;
+
+        const haloRadius = dot.size + 2.5 + Math.sin(time * 2.5 + dot.pulse) * 1.8;
+        ctx.strokeStyle = 'rgba(244, 63, 94, 0.45)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(x, y, haloRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = '#f43f5e';
+        ctx.beginPath();
+        ctx.arc(x, y, dot.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      for (let i = activeProjectiles.length - 1; i >= 0; i--) {
+        const p = activeProjectiles[i];
+        p.progress += 0.035;
+        const ease = 1 - Math.pow(1 - Math.min(p.progress, 1), 3);
+        const curR = ease * p.targetRNorm * maxRadius;
+        const x = cx + Math.cos(p.angle) * curR;
+        const y = cy + Math.sin(p.angle) * curR;
+
+        ctx.strokeStyle = 'rgba(244, 63, 94, 0.65)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        ctx.fillStyle = '#fda4af';
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (p.progress >= 1) {
+          outlierDots.push({
+            angle: p.angle,
+            rNorm: p.targetRNorm,
+            size: 3.8,
+            dm: p.dm,
+            label: p.label,
+            pulse: Math.random() * 3
+          });
+          shockwaves.push({ x, y, radius: 4, alpha: 0.9 });
+          activeProjectiles.splice(i, 1);
+          document.getElementById('radar-outlier-count').textContent =
+            `Active Far-OOD Vectors: ${outlierDots.length} (Latest D_rel = ${p.dm})`;
+        }
+      }
+
+      for (let i = shockwaves.length - 1; i >= 0; i--) {
+        const sw = shockwaves[i];
+        sw.radius += 1.1;
+        sw.alpha -= 0.025;
+        if (sw.alpha <= 0) {
+          shockwaves.splice(i, 1);
+          continue;
+        }
+        ctx.strokeStyle = `rgba(244, 63, 94, ${sw.alpha})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      requestAnimationFrame(drawMahalanobisRadar);
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      const allDots = [...outlierDots, ...signatureDots, ...benignDots];
+      let hovered = null;
+      for (const d of allDots) {
+        if (d.screenX === undefined) continue;
+        if (Math.hypot(mx - d.screenX, my - d.screenY) <= 7) {
+          hovered = d;
+          break;
+        }
+      }
+
+      if (hovered) {
+        tooltipEl.classList.remove('hidden');
+        tooltipEl.style.left = `${Math.min(mx + 12, rect.width - 170)}px`;
+        tooltipEl.style.top = `${Math.max(my - 32, 8)}px`;
+        tooltipEl.innerHTML = `<span class="text-cyan-300 font-bold">${hovered.label}</span><br/>Relative D_rel = <strong class="text-white">${hovered.dm}</strong>`;
+      } else {
+        tooltipEl.classList.add('hidden');
+      }
+    });
+
+    canvas.addEventListener('mouseleave', () => tooltipEl.classList.add('hidden'));
+
+    function resetRadarParticles() {
+      initRadarParticles();
+      document.getElementById('radar-outlier-count').textContent =
+        `Active Far-OOD Vectors: ${outlierDots.length} (Latest D_rel = 2.81)`;
+      showToast('Relative Manifold Space projection re-centered.', 'info');
+    }
+
+    // =========================================================================
+    // SCENARIO 1: SIMULATE NORMAL TRAFFIC
+    // =========================================================================
+    async function simulateNormalTraffic() {
+      let apiData = null;
+      if (USE_BACKEND_API) {
+        apiData = await fetchFromBackend('normal', false);
+      }
+
+      const inc = apiData ? 1 : Math.floor(Math.random() * 10) + 5;
+      animateCounter('kpi-total', state.totalAnalyzed, state.totalAnalyzed + inc);
+      animateCounter('kpi-benign', state.autoAllowed, state.autoAllowed + inc);
+      state.totalAnalyzed += inc;
+      state.autoAllowed += inc;
+
+      const nowTime = getFormattedTime();
+      const lowEpistemic = apiData ? +(apiData.zerogate.epistemic_pct / 100).toFixed(3) : +(0.06 + Math.random() * 0.08).toFixed(2);
+      const lowAleatoric = apiData ? +(apiData.zerogate.aleatoric_pct / 100).toFixed(3) : +(0.05 + Math.random() * 0.09).toFixed(2);
+      const highSoftmax  = apiData ? +(apiData.closed_world.softmax_confidence_pct / 100).toFixed(3) : 0.99;
+
+     state.timestamps.push(nowTime);
+      state.epistemicSeries.push(lowEpistemic);
+      state.aleatoricSeries.push(lowAleatoric);
+      state.softmaxSeries.push(
+        apiData ? +((100 - apiData.closed_world.softmax_confidence_pct) / 100 + 0.08).toFixed(3) : +(0.10 + Math.random() * 0.08).toFixed(2)
+      );
+
+      if (state.timestamps.length > 8) {
+        state.timestamps.shift();
+        state.epistemicSeries.shift();
+        state.aleatoricSeries.shift();
+        state.softmaxSeries.shift();
+      }
+
+      timelineChart.updateOptions({ xaxis: { categories: state.timestamps } });
+      timelineChart.updateSeries([
+        { name: 'Epistemic', data: state.epistemicSeries },
+        { name: 'Aleatoric', data: state.aleatoricSeries },
+        { name: 'Softmax',   data: state.softmaxSeries }
+      ]);
+
+      const spikeBadge = document.getElementById('badge-spike-detected');
+      spikeBadge.textContent = 'NOMINAL (IN-DIST)';
+      spikeBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-semibold uppercase bg-emerald-950/60 text-emerald-300 border border-emerald-500/40';
+
+      const flowIdStr = apiData ? apiData.flow_id : `#${Math.floor(9100 + Math.random() * 800)}`;
+      const benignIp = apiData ? apiData.source_ip : '10.0.4.52';
+      document.getElementById('triage-flow-meta').innerHTML =
+        `ACTIVE FLOW: <strong class="text-emerald-400">${flowIdStr}</strong> • SRC: <strong class="text-slate-200">${benignIp}</strong>`;
+
+      const cwConf = apiData ? apiData.closed_world.softmax_confidence_pct.toFixed(1) : '99.8';
+      const cwPred = apiData ? apiData.closed_world.predicted_label : 'BENIGN';
+      document.getElementById('cw-prediction').textContent = `${cwPred} (${cwConf}%)`;
+      document.getElementById('cw-subnote').textContent = 'In-Distribution Region Matched';
+      document.getElementById('cw-status-pill').className =
+        'w-full py-1.5 px-2.5 rounded bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 font-semibold text-[11px] tracking-wide uppercase flex items-center justify-center space-x-1.5';
+      document.getElementById('cw-status-text').textContent = 'IN-DISTRIBUTION PASS';
+
+      const zgCard = document.getElementById('subcard-zerogate');
+      zgCard.className = 'subcard-zerogate-calm p-4 flex flex-col items-center justify-between text-center min-h-[192px] transition-colors duration-300';
+      document.getElementById('zg-wave-left').classList.replace('text-rose-400', 'text-emerald-400');
+      document.getElementById('zg-wave-right').classList.replace('text-rose-400', 'text-emerald-400');
+
+      const zgTitle = document.getElementById('zg-decision-title');
+      zgTitle.textContent = apiData ? apiData.zerogate.verdict : 'AUTO-ALLOW (BENIGN)';
+      zgTitle.className = 'text-base font-bold font-mono tracking-wide text-emerald-400';
+
+      const doubtPct = apiData ? apiData.zerogate.epistemic_pct.toFixed(1) : '8.4';
+      document.getElementById('zg-doubt-bar').style.width = `${doubtPct}%`;
+      document.getElementById('zg-doubt-val').textContent = `(${doubtPct}%)`;
+
+      const pVal = apiData ? apiData.zerogate.conformal_p.toFixed(4) : '0.8420';
+      const pValEl = document.getElementById('zg-pval');
+      pValEl.textContent = pVal;
+      pValEl.className = 'text-emerald-400 font-bold';
+
+      const zgPill = document.getElementById('zg-status-pill');
+      zgPill.className = 'w-full py-1.5 px-2.5 rounded bg-emerald-950/60 border border-emerald-500/50 text-emerald-200 font-semibold text-[11px] tracking-wide uppercase flex items-center justify-center space-x-1.5';
+      document.getElementById('zg-status-text').textContent = apiData ? apiData.zerogate.action : 'VERIFIED IN-DISTRIBUTION';
+
+      const drifts = apiData ? apiData.feature_drift : [
+        { feature: 'Flow Duration', z_score: 0.35, drift_pct: 11.0 },
+        { feature: 'Average Packet Size', z_score: 0.44, drift_pct: 14.0 },
+        { feature: 'Packet Length Mean', z_score: 0.25, drift_pct: 8.0 }
+      ];
+      updateFeatureDriftBars(
+        drifts,
+        false,
+        pVal,
+        apiData ? apiData.zerogate.mahalanobis_distance.toFixed(2) : '0.63'
+      );
+
+      setHeaderStatus('ONLINE', 'SYSTEM ONLINE — MODE: ACTIVE');
+    }
+
+    // =========================================================================
+    // SCENARIO 2: INJECT ZERO-DAY ATTACK
+    // =========================================================================
+    async function injectZeroDayAttack() {
+      let apiData = null;
+      if (USE_BACKEND_API) {
+        apiData = await fetchFromBackend('zeroday', true);
+      }
+
+      animateCounter('kpi-total', state.totalAnalyzed, state.totalAnalyzed + 1);
+      animateCounter('kpi-quarantine', state.quarantines, state.quarantines + 1);
+      state.totalAnalyzed += 1;
+      state.quarantines += 1;
+
+      const qCard = document.getElementById('kpi-quarantine-card');
+      qCard.classList.add('scale-[1.02]');
+      setTimeout(() => qCard.classList.remove('scale-[1.02]'), 250);
+
+      const nowTime = getFormattedTime();
+      const spikeEpistemic = apiData ? +(apiData.zerogate.epistemic_pct / 100).toFixed(3) : 0.91;
+      const spikeAleatoric = apiData ? +(apiData.zerogate.aleatoric_pct / 100).toFixed(3) : 0.24;
+      const fooledSoftmax  = apiData ? +(apiData.closed_world.softmax_confidence_pct / 100).toFixed(3) : 0.994;
+
+      state.timestamps.push(nowTime);
+      state.epistemicSeries.push(spikeEpistemic);
+      state.aleatoricSeries.push(spikeAleatoric);
+      state.softmaxSeries.push(
+        apiData ? +((100 - apiData.closed_world.softmax_confidence_pct) / 100 + 0.09).toFixed(3) : +(0.12 + Math.random() * 0.09).toFixed(2)
+      );
+      
+      if (state.timestamps.length > 8) {
+        state.timestamps.shift();
+        state.epistemicSeries.shift();
+        state.aleatoricSeries.shift();
+        state.softmaxSeries.shift();
+      }
+
+      timelineChart.updateOptions({
+        xaxis: { categories: state.timestamps },
+        annotations: {
+          yaxis: [{ y: 0.5, borderColor: '#475569', strokeDashArray: 3 }],
+          xaxis: [
+            {
+              x: nowTime,
+              borderColor: '#f43f5e',
+              fillColor: 'rgba(244, 63, 94, 0.22)',
+              label: {
+                text: 'ZERO-DAY SPIKE',
+                borderColor: '#f43f5e',
+                style: { background: '#1f0d14', color: '#ffe4e6', fontSize: '9px', fontFamily: 'JetBrains Mono' }
+              }
+            }
+          ]
+        }
+      });
+      timelineChart.updateSeries([
+        { name: 'Epistemic', data: state.epistemicSeries },
+        { name: 'Aleatoric', data: state.aleatoricSeries },
+        { name: 'Softmax',   data: state.softmaxSeries }
+      ]);
+
+      const spikeBadge = document.getElementById('badge-spike-detected');
+      spikeBadge.textContent = 'SPIKE DETECTED';
+      spikeBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-semibold uppercase bg-rose-950/60 text-rose-300 border border-rose-500/40';
+
+      const newFlowId = apiData ? apiData.flow_id : `#${Math.floor(9100 + Math.random() * 890)}`;
+      const newIp = apiData ? apiData.source_ip : '45.134.212.71';
+      const candidate = apiData && apiData.attack_family ? apiData.attack_family : 'Web Attack - XSS (Zero-Day)';
+      const epistemicPct = apiData ? apiData.zerogate.epistemic_pct.toFixed(1) + '%' : '91.0%';
+      const pValue = apiData ? apiData.zerogate.conformal_p.toFixed(4) : '0.0012';
+      const dmDist = apiData ? apiData.zerogate.mahalanobis_distance.toFixed(2) : '2.81';
+      const oodZoneTag = apiData ? `[${apiData.zerogate.ood_zone}]` : '[Far-OOD]';
+
+      if (apiData && apiData.raw_features) {
+        state.flowFeaturesMap[newFlowId] = apiData.raw_features;
+      }
+
+      document.getElementById('triage-flow-meta').innerHTML =
+        `ACTIVE FLOW: <strong class="text-rose-400">${newFlowId}</strong> • SRC: <strong class="text-slate-200">${newIp}</strong>`;
+
+      const cwPred = apiData ? apiData.closed_world.predicted_label : 'BENIGN';
+      document.getElementById('cw-prediction').textContent = `${cwPred} (${(fooledSoftmax * 100).toFixed(1)}%)`;
+      document.getElementById('cw-subnote').textContent = 'Overconfident Extrapolation on Unseen Manifold';
+      document.getElementById('cw-status-pill').className =
+        'w-full py-1.5 px-2.5 rounded bg-rose-950/50 border border-rose-500/40 text-rose-300 font-semibold text-[11px] tracking-wide uppercase flex items-center justify-center space-x-1.5';
+      document.getElementById('cw-status-text').textContent = 'SILENT FAILURE (UNSEEN)';
+
+      const zgCard = document.getElementById('subcard-zerogate');
+      zgCard.className = 'subcard-zerogate-alert p-4 flex flex-col items-center justify-between text-center min-h-[192px] transition-colors duration-300';
+      document.getElementById('zg-wave-left').classList.replace('text-emerald-400', 'text-rose-400');
+      document.getElementById('zg-wave-right').classList.replace('text-emerald-400', 'text-rose-400');
+
+      const zgTitle = document.getElementById('zg-decision-title');
+      zgTitle.textContent = apiData ? apiData.zerogate.verdict : 'ABSTAIN - UNKNOWN';
+      zgTitle.className = 'text-base font-bold font-mono tracking-wide text-rose-400';
+
+      document.getElementById('zg-doubt-bar').style.width = epistemicPct;
+      document.getElementById('zg-doubt-val').textContent = `(${epistemicPct})`;
+
+      const pValEl = document.getElementById('zg-pval');
+      pValEl.textContent = pValue;
+      pValEl.className = 'text-rose-400 font-bold';
+
+      const zgPill = document.getElementById('zg-status-pill');
+      zgPill.className = 'w-full py-1.5 px-2.5 rounded bg-rose-950/60 border border-rose-500/50 text-rose-200 font-semibold text-[11px] tracking-wide uppercase flex items-center justify-center space-x-1.5';
+      document.getElementById('zg-status-text').textContent = apiData ? apiData.zerogate.action : 'QUARANTINE - PENDING TRIAGE';
+
+      const drifts = apiData ? apiData.feature_drift : [
+        { feature: 'Protocol Port Surprise', z_score: 4.82, drift_pct: 94.2 },
+        { feature: 'Packet Length Variance', z_score: 3.91, drift_pct: 86.5 },
+        { feature: 'Init_Win_bytes_forward', z_score: 2.74, drift_pct: 71.0 }
+      ];
+      updateFeatureDriftBars(drifts, true, pValue, dmDist);
+
+      // Scale v4 Relative Distance (where 1.42 is the 95% ring and 2.8+ is Far-OOD)
+      const scaledRadius = Math.min(1.25, Math.max(0.72, parseFloat(dmDist) / 2.8));
+      const randomOutlierAngle = (Math.random() * 1.4) - 0.5;
+      activeProjectiles.push({
+        angle: randomOutlierAngle,
+        targetRNorm: scaledRadius,
+        progress: 0,
+        dm: dmDist,
+        label: `${candidate} ${newFlowId}`
+      });
+
+      prependTriageRow({
+        timestamp: nowTime,
+        flowId: newFlowId,
+        sourceIp: newIp,
+        candidate: candidate,
+        epistemic: epistemicPct,
+        pVal: pValue,
+        distance: `${dmDist} ${oodZoneTag}`
+      });
+
+      setHeaderStatus('ALERT', 'ALERT — ZERO-DAY QUARANTINE TRIGGERED');
+      showToast(`Quarantined ${newFlowId} (${candidate}) • D_rel=${dmDist} • p=${pValue}`, 'danger');
+    }
+
+    function updateFeatureDriftBars(drifts, isAttack, pValStr, mahaStr) {
+      const d1 = drifts[0] || { feature: 'Protocol Port Surprise', z_score: 0.4, drift_pct: 12 };
+      const d2 = drifts[1] || { feature: 'Packet Length Variance', z_score: 0.3, drift_pct: 10 };
+      const d3 = drifts[2] || { feature: 'Flow IAT Max', z_score: 0.2, drift_pct: 8 };
+
+      document.getElementById('drift-label-1').textContent = `${d1.feature} (${d1.drift_pct}%)`;
+      document.getElementById('drift-inner-1').textContent = isAttack
+        ? `Out-of-Distribution (+${d1.z_score}σ)`
+        : `${d1.drift_pct}% Nominal`;
+      document.getElementById('drift-inner-1').className = `font-mono text-[11px] ${isAttack ? 'text-rose-400' : 'text-emerald-400'}`;
+      renderSegBar('seg-bar-1', d1.drift_pct, isAttack);
+
+      document.getElementById('drift-label-2').textContent = `${d2.feature} (${d2.drift_pct}%)`;
+      document.getElementById('drift-inner-2').textContent = isAttack ? `+${d2.z_score}σ Drift` : 'In-Bound';
+      document.getElementById('drift-inner-2').className = `font-mono text-[11px] ${isAttack ? 'text-amber-400' : 'text-slate-400'}`;
+      renderSegBar('seg-bar-2', d2.drift_pct, isAttack);
+
+      document.getElementById('drift-label-3').textContent = `${d3.feature} (${d3.drift_pct}%)`;
+      document.getElementById('drift-inner-3').textContent = isAttack ? `+${d3.z_score}σ Entropy` : 'Normal';
+      document.getElementById('drift-inner-3').className = `font-mono text-[11px] ${isAttack ? 'text-rose-300' : 'text-slate-400'}`;
+      renderSegBar('seg-bar-3', d3.drift_pct, isAttack);
+
+      const badge = document.getElementById('drift-mode-badge');
+      badge.textContent = isAttack ? 'FAR-OOD SHIFT' : 'IN-DISTRIBUTION';
+      badge.className = isAttack ? 'text-rose-400' : 'text-emerald-400';
+
+      document.getElementById('drift-kl').textContent = pValStr;
+      document.getElementById('drift-w1').textContent = mahaStr;
+      document.getElementById('drift-top-feat').textContent = d1.feature;
+    }
+
+    function prependTriageRow(row) {
+      const tbody = document.getElementById('triage-table-body');
+      const cleanId = row.flowId.replace('#', '');
+      const tr = document.createElement('tr');
+      tr.id = `row-${cleanId}`;
+      tr.dataset.status = 'quarantined';
+      tr.className = 'animate-row-flash hover:bg-[#10141d] transition';
+
+      const distParts = row.distance.split(' ');
+      tr.innerHTML = `
+        <td class="py-2.5 px-4 text-slate-300">${row.timestamp}</td>
+        <td class="py-2.5 px-3 text-white font-semibold">${row.flowId}</td>
+        <td class="py-2.5 px-3 text-slate-300">${row.sourceIp}</td>
+        <td class="py-2.5 px-3 font-sans font-medium text-rose-400">${row.candidate}</td>
+        <td class="py-2.5 px-3 font-semibold text-emerald-400">${row.epistemic}</td>
+        <td class="py-2.5 px-3 text-slate-200">${row.pVal}</td>
+        <td class="py-2.5 px-3">
+          <span class="text-white font-semibold">${distParts[0]}</span>
+          <span class="text-rose-400">${distParts[1] || '[Far-OOD]'}</span>
+        </td>
+        <td class="py-2.5 px-4">
+          <div class="flex items-center justify-end sm:justify-between gap-2">
+            <span id="status-text-${cleanId}" class="font-sans text-rose-300 font-medium">Quarantined</span>
+            <div class="flex items-center space-x-1.5">
+              <button onclick="openTriageModal('${row.flowId}', '${row.sourceIp}', '${row.candidate}', '${row.epistemic}', '${row.pVal}', '${row.distance}', 'Quarantined')" class="px-2.5 py-1 rounded bg-[#111726] hover:bg-[#182136] text-cyan-300 border border-[#24324d] text-[11px] font-sans font-medium transition">
+                Investigate
+              </button>
+              <button id="patch-btn-${cleanId}" onclick="executeActiveLearningPatch('${row.flowId}', '${row.sourceIp}')" class="px-2.5 py-1 rounded bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 text-[11px] font-sans font-medium transition">
+                Patch
+              </button>
+            </div>
+          </div>
+        </td>
+      `;
+
+      tbody.insertBefore(tr, tbody.firstChild);
+      updateQueueBadgeCount();
+    }
+
+    function updateQueueBadgeCount() {
+      const rows = document.querySelectorAll('#triage-table-body tr');
+      let pending = 0;
+      rows.forEach(r => {
+        if (r.dataset.status !== 'patched') pending++;
+      });
+      document.getElementById('queue-count-badge').textContent = `${pending} PENDING TRIAGE`;
+    }
+
+    function openTriageModal(flowId, srcIp, candidate, epistemic, pval, distance, status) {
+      state.activeModalFlowId = flowId;
+      state.activeModalIp = srcIp;
+
+      document.getElementById('modal-flow-id').textContent = flowId;
+      document.getElementById('modal-src-ip').textContent = srcIp;
+      document.getElementById('modal-epistemic').textContent = epistemic;
+      document.getElementById('modal-pval').textContent = pval;
+      document.getElementById('modal-distance').textContent = distance;
+      document.getElementById('modal-candidate').textContent = candidate;
+
+      const modal = document.getElementById('triage-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeTriageModal() {
+      const modal = document.getElementById('triage-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function confirmModalPatch() {
+      closeTriageModal();
+      executeActiveLearningPatch(state.activeModalFlowId, state.activeModalIp);
+    }
+
+    async function executeActiveLearningPatch(flowId, srcIp) {
+      const cleanId = flowId.replace('#', '');
+      const statusTextEl = document.getElementById(`status-text-${cleanId}`);
+      const patchBtnEl = document.getElementById(`patch-btn-${cleanId}`);
+      const rowEl = document.getElementById(`row-${cleanId}`);
+
+      if (USE_BACKEND_API && state.flowFeaturesMap[flowId]) {
+        try {
+          const res = await fetch(`${BACKEND_BASE_URL}/recalibrate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              features: state.flowFeaturesMap[flowId],
+              label_name: `ZeroDay-${cleanId}`
+            })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const sub = document.getElementById('ticker-centroids-sub');
+            if (sub) sub.textContent = `${data.total_centroids} Prototypes`;
+          }
+        } catch (err) {}
+      }
+
+      if (statusTextEl) {
+        statusTextEl.textContent = 'Patched (Known Sig)';
+        statusTextEl.className = 'font-sans text-emerald-400 font-medium';
+      }
+      if (patchBtnEl) {
+        patchBtnEl.textContent = 'Recalibrated ✓';
+        patchBtnEl.disabled = true;
+        patchBtnEl.className = 'px-2.5 py-1 rounded bg-emerald-950/50 text-emerald-400 border border-emerald-500/40 text-[11px] font-sans font-medium cursor-default';
+      }
+      if (rowEl) {
+        rowEl.dataset.status = 'patched';
+      }
+
+      animateCounter('kpi-blocked', state.autoBlocked, state.autoBlocked + 1);
+      state.autoBlocked += 1;
+
+      updateQueueBadgeCount();
+      showToast(`Active Learning Complete for ${flowId} (${srcIp}) — Reference Manifold Updated.`, 'success');
+    }
+
+    function filterTriageTable(filterType) {
+      state.currentFilter = filterType;
+      document.querySelectorAll('.triage-filter-btn').forEach(btn => {
+        if (btn.dataset.filter === filterType) {
+          btn.className = 'triage-filter-btn px-2.5 py-0.5 rounded bg-[#161c2a] text-white border border-[#263044] font-medium transition';
+        } else {
+          btn.className = 'triage-filter-btn px-2.5 py-0.5 rounded bg-[#0e1118] hover:bg-[#141924] text-slate-400 border border-[#1a202c] font-medium transition';
+        }
+      });
+
+      document.querySelectorAll('#triage-table-body tr').forEach(row => {
+        if (filterType === 'all' || row.dataset.status === filterType) {
+          row.classList.remove('hidden');
+        } else {
+          row.classList.add('hidden');
+        }
+      });
+    }
+
+    function toggleAutoStream() {
+      const dot = document.getElementById('autostream-dot');
+      const label = document.getElementById('autostream-label');
+
+      if (state.autoStreamInterval) {
+        clearInterval(state.autoStreamInterval);
+        state.autoStreamInterval = null;
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-500';
+        label.textContent = 'OFF';
+        label.className = 'text-slate-400';
+        showToast('Auto-Stream paused.', 'info');
+      } else {
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping';
+        label.textContent = 'ON (3.5s)';
+        label.className = 'text-emerald-400';
+        showToast('Auto-Stream enabled (streaming live CIC-IDS2017 packets).', 'success');
+        state.autoStreamInterval = setInterval(() => {
+          if (Math.random() < 0.72) simulateNormalTraffic();
+          else injectZeroDayAttack();
+        }, 3500);
+      }
+    }
+
+    function setHeaderStatus(mode, text) {
+      const pill = document.getElementById('system-status-pill');
+      const dot = document.getElementById('system-led-dot');
+      const label = document.getElementById('system-status-text');
+
+      label.textContent = text;
+      if (mode === 'ALERT') {
+        pill.className = 'flex items-center space-x-2 px-3 py-1 rounded bg-rose-950/50 border border-rose-500/40 transition-all duration-300';
+        dot.className = 'w-2 h-2 rounded-full bg-rose-500 animate-ping';
+        label.className = 'text-[11px] font-mono font-semibold tracking-wider text-rose-300 uppercase';
+      } else {
+        pill.className = 'flex items-center space-x-2 px-3 py-1 rounded bg-[#0e131d] border border-[#1c2638] transition-all duration-300';
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+        label.className = 'text-[11px] font-mono font-semibold tracking-wider text-emerald-400 uppercase';
+      }
+    }
+
+    function switchNavTab(index, tabName) {
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.className = 'nav-btn w-8 h-8 rounded flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-[#121620] transition relative';
+        const bar = btn.querySelector('span.bg-cyan-400');
+        if (bar) bar.remove();
+      });
+
+      const clicked = document.querySelector(`[data-nav="${index}"]`);
+      if (clicked) {
+        clicked.className = 'nav-btn active-nav w-8 h-8 rounded flex items-center justify-center text-white bg-[#141926] border border-[#242d42] transition relative';
+        const indicator = document.createElement('span');
+        indicator.className = 'absolute -left-2 w-0.5 h-4 bg-cyan-400 rounded-r';
+        clicked.prepend(indicator);
+      }
+      showToast(`View: ${tabName}`, 'info');
+    }
+
+    function openSystemSpecModal() {
+      openTriageModal('#9042', '45.134.212.71', 'Web Attack - XSS (Zero-Day)', '91.0%', '0.0012', '2.81 [Far-OOD]', 'Quarantined');
+    }
+
+    function animateCounter(elementId, start, end) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      const duration = 380;
+      const startTime = performance.now();
+      function tick(now) {
+        const progress = Math.min((now - startTime) / duration, 1);
+        const current = Math.floor(start + (end - start) * progress);
+        el.textContent = current.toLocaleString();
+        if (progress < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+
+    function getFormattedTime() {
+      const d = new Date();
+      return d.toTimeString().split(' ')[0];
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const styles = {
+        info: 'bg-[#0c0e14] border-[#243046] text-slate-200',
+        success: 'bg-[#0c1412] border-emerald-500/50 text-emerald-200',
+        warning: 'bg-[#17120a] border-amber-500/50 text-amber-200',
+        danger: 'bg-[#190b10] border-rose-500/60 text-rose-200'
+      };
+      toast.className = `pointer-events-auto px-3.5 py-2 rounded border text-xs font-mono flex items-center space-x-2 shadow-xl transition-all duration-300 ${styles[type] || styles.info}`;
+      toast.innerHTML = `<span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 250);
+      }, 3200);
+    }
+
+    window.onload = function () {
+      initTimelineChart();
+      resizeRadarCanvas();
+      initRadarParticles();
+      drawMahalanobisRadar();
+
+      renderSegBar('seg-bar-1', 94.2, true);
+      renderSegBar('seg-bar-2', 86.5, true);
+      renderSegBar('seg-bar-3', 71.0, true);
+
+      checkBackendHealth();
+      window.addEventListener('resize', resizeRadarCanvas);
+    };
+  </script>
+</body>
+</html>

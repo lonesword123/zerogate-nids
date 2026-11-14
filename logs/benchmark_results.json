@@ -1,0 +1,45 @@
+{
+  "in_distribution_accuracy_pct": 99.67,
+  "conformal_id_coverage_pct": 94.8,
+  "closed_world_auroc_pct": 73.64,
+  "zerogate_auroc_pct": 90.86,
+  "zeroday_quarantine_rate_pct": 66.44,
+  "per_zeroday_class": {
+    "Bot": {
+      "count": 1956,
+      "zerogate_catch_rate_pct": 36.55,
+      "median_mahalanobis": 1.25,
+      "closed_world_fooled_as_benign_pct": 100.0
+    },
+    "Heartbleed": {
+      "count": 11,
+      "zerogate_catch_rate_pct": 100.0,
+      "median_mahalanobis": 2.03,
+      "closed_world_fooled_as_benign_pct": 100.0
+    },
+    "Infiltration": {
+      "count": 36,
+      "zerogate_catch_rate_pct": 97.22,
+      "median_mahalanobis": 2.18,
+      "closed_world_fooled_as_benign_pct": 100.0
+    },
+    "Web Attack \u00ef\u00bf\u00bd Brute Force": {
+      "count": 1507,
+      "zerogate_catch_rate_pct": 90.84,
+      "median_mahalanobis": 2.79,
+      "closed_world_fooled_as_benign_pct": 96.95
+    },
+    "Web Attack \u00ef\u00bf\u00bd Sql Injection": {
+      "count": 21,
+      "zerogate_catch_rate_pct": 66.67,
+      "median_mahalanobis": 0.93,
+      "closed_world_fooled_as_benign_pct": 71.43
+    },
+    "Web Attack \u00ef\u00bf\u00bd XSS": {
+      "count": 652,
+      "zerogate_catch_rate_pct": 97.39,
+      "median_mahalanobis": 2.81,
+      "closed_world_fooled_as_benign_pct": 96.01
+    }
+  }
+}
